@@ -5,6 +5,7 @@ import logging
 from typing import Any
 import numpy as np
 from bertopic import BERTopic
+from bertopic.representation import KeyBERTInspired
 from umap import UMAP
 from hdbscan import HDBSCAN
 from sklearn.feature_extraction.text import CountVectorizer
@@ -91,6 +92,14 @@ def run_bertopic(
         "iyang", "kanyang", "among", "atong", "ilang", "inyong", "among",
         # High-frequency Cebuano filler (kaayo=very, mao=that/it, bawat=every)
         "kaayo", "mao", "bawat", "aralin", "klase", "gawain",
+        # Generic action verbs (high-freq across all topics, zero discrimination)
+        # nagbibigay=gives, naguse=uses, nagtatakda=sets/assigns
+        "nagbibigay", "naguse", "nagtatakda", "naggagamit", "ginagamit",
+        "nagbibigay ng", "ginagamit ng",
+        # Generic English filler found in Topic 13 (sentiment noise)
+        "really", "much", "am", "way", "feel", "truly",
+        # Generic time/context words
+        "every", "during", "specific", "even",
         # Tagalog function words
         "ng", "mga", "ay", "nang", "rin", "din", "po", "ho", "yung",
         "kasi", "naman", "lang", "pa", "pag", "kung", "dahil", "para",
@@ -103,6 +112,13 @@ def run_bertopic(
         min_df=2
     )
     
+    # Representation model: KeyBERTInspired (Grootendorst 2022, §4.2)
+    # Uses embedding similarity instead of c-TF-IDF frequency counts.
+    # Language-agnostic — finds keywords semantically closest to cluster centroid.
+    # Eliminates the need for manual stop word lists as primary mechanism.
+    use_keybert = params.get("use_keybert", True)
+    representation_model = KeyBERTInspired() if use_keybert else None
+
     # Create BERTopic model
     # embedding_model=None tells BERTopic to use pre-computed embeddings
     topic_model = BERTopic(
@@ -110,6 +126,7 @@ def run_bertopic(
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
         vectorizer_model=vectorizer_model,
+        representation_model=representation_model,
         nr_topics=nr_topics,
         verbose=True
     )
