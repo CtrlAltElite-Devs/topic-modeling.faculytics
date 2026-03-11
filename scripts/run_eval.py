@@ -18,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import (
     DATA_DIR, EXPERIMENTS_DIR,
-    UC_DATASET_PATH, AUGMENTED_DATASET_PATH
+    UC_DATASET_PATH, AUGMENTED_DATASET_PATH,
+    LABSE_MODEL, DEVICE
 )
 from src.preprocess import clean_dataset
 from src.embed import embed_texts
@@ -52,7 +53,7 @@ def load_dataset(dataset_type: str) -> list[str]:
             data = json.load(f)
         # Extract text field
         return [item["text"] for item in data]
-    
+
     elif dataset_type == "real":
         logger.info(f"Loading real dataset from {UC_DATASET_PATH}")
         import pandas as pd
@@ -67,7 +68,7 @@ def load_dataset(dataset_type: str) -> list[str]:
                 logger.warning(f"'comment' column not found, using '{text_cols[0]}'")
                 return df[text_cols[0]].dropna().astype(str).tolist()
             raise ValueError("No text column found in dataset")
-    
+
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
@@ -81,15 +82,15 @@ def save_run_artifacts(
 ) -> None:
     """Save all run artifacts to the experiment directory."""
     run_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save parameters
     with open(run_dir / "params.json", "w") as f:
         json.dump(params, f, indent=2)
-    
+
     # Save metrics
     with open(run_dir / "metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
-    
+
     # Save topics as markdown
     with open(run_dir / "topics.md", "w") as f:
         f.write(f"# Topics for Run {run_dir.name}\n\n")
@@ -98,27 +99,27 @@ def save_run_artifacts(
             f.write(f"## Topic {topic['topic_id']}: {topic['label']}\n")
             f.write(f"- Documents: {topic['doc_count']}\n")
             f.write(f"- Keywords: {', '.join(topic['keywords'])}\n\n")
-    
+
     # Save text count
     with open(run_dir / "info.json", "w") as f:
         json.dump({
             "n_texts": len(texts),
             "timestamp": datetime.now().isoformat()
         }, f, indent=2)
-    
+
     logger.info(f"Artifacts saved to {run_dir}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run topic modeling evaluation")
     parser.add_argument(
-        "--dataset", 
-        choices=["augmented", "real"], 
+        "--dataset",
+        choices=["augmented", "real"],
         required=True,
         help="Dataset to use"
     )
     parser.add_argument(
-        "--run-id", 
+        "--run-id",
         required=True,
         help="Run identifier (e.g., 001, 002)"
     )
@@ -156,9 +157,9 @@ def main():
         action="store_true",
         help="Skip Discord notification"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Build params
     params = {
         "min_topic_size": args.min_topic_size,
@@ -168,21 +169,21 @@ def main():
         "dataset": args.dataset,
         "run_id": args.run_id
     }
-    
+
     logger.info(f"=== Starting Run {args.run_id} on {args.dataset} dataset ===")
-    
+
     # Step 1: Load data
     texts_raw = load_dataset(args.dataset)
     logger.info(f"Loaded {len(texts_raw)} raw texts")
-    
+
     # Step 2: Preprocess
     texts = clean_dataset(texts_raw)
     logger.info(f"After preprocessing: {len(texts)} texts")
-    
+
     if len(texts) < 100:
         logger.error("Too few texts after preprocessing, aborting")
         return 1
-    
+
     # Step 3: Embed
     embeddings = embed_texts(
         texts,
@@ -191,32 +192,35 @@ def main():
         force=args.force_embed
     )
     logger.info(f"Embeddings shape: {embeddings.shape}")
-    
+
     # Step 4: Run BERTopic
     model = run_bertopic(embeddings, texts, params)
     topics = get_topic_assignments(model, texts, embeddings)
     topic_info = extract_topic_info(model)
-    
-    # Step 5: Evaluate
-    metrics = compute_metrics(model, topics, texts, embeddings)
-    
+
+    # Step 5: Evaluate (load LaBSE for embedding coherence metric)
+    logger.info("Loading LaBSE for embedding coherence evaluation...")
+    from sentence_transformers import SentenceTransformer
+    embed_model = SentenceTransformer(LABSE_MODEL, device=DEVICE)
+    metrics = compute_metrics(model, topics, texts, embeddings, embed_model=embed_model)
+
     # Step 6: Save artifacts
     run_dir = EXPERIMENTS_DIR / f"run_{args.run_id}"
     save_run_artifacts(run_dir, params, metrics, topic_info, texts)
-    
+
     # Step 7: Format report
     report = format_metrics_report(metrics, topic_info, args.run_id, params)
     print("\n" + report + "\n")
-    
+
     # Step 8: Post to Discord
     if not args.no_notify:
         logger.info("Posting results to Discord...")
-        success = post_to_discord(report)
+        success = post_to_discord(report, ping_self=True)
         if success:
             logger.info("Discord notification sent!")
         else:
             logger.warning("Discord notification failed")
-    
+
     logger.info(f"=== Run {args.run_id} complete ===")
     return 0
 

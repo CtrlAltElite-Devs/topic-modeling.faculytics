@@ -16,6 +16,9 @@ load_dotenv()
 DISCORD_API_BASE = "https://discord.com/api/v10"
 MAX_MESSAGE_LENGTH = 1900  # Leave buffer under 2000 limit
 
+# Y.A.L.A. bot's own user ID — used to self-ping and trigger next session
+YALA_BOT_ID = "1479328192765362317"
+
 
 def get_bot_token() -> str:
     """Get Discord bot token from environment."""
@@ -25,7 +28,7 @@ def get_bot_token() -> str:
     return token
 
 
-def post_to_discord(message: str, channel_id: str = DISCORD_CHANNEL_ID) -> bool:
+def post_to_discord(message: str, channel_id: str = DISCORD_CHANNEL_ID, ping_self: bool = False) -> bool:
     """
     Post a message to Discord channel.
     
@@ -50,6 +53,10 @@ def post_to_discord(message: str, channel_id: str = DISCORD_CHANNEL_ID) -> bool:
     # Split message if too long
     chunks = split_message(message)
     
+    # Append self-ping to last chunk to trigger Y.A.L.A.'s next session
+    if ping_self:
+        chunks[-1] = chunks[-1] + f"\n<@{YALA_BOT_ID}> next run ready for analysis."
+
     success = True
     for i, chunk in enumerate(chunks):
         payload = {"content": chunk}

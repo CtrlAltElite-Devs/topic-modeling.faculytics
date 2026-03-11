@@ -67,6 +67,11 @@ def run_bertopic(
     # Stop words: English + high-frequency Cebuano/Tagalog function words
     # These are grammatical tokens that dominate c-TF-IDF without adding topic signal
     MULTILINGUAL_STOP_WORDS = list({
+        # Role/title words — appear in almost all feedback, no topic signal
+        # Adding these breaks up the generic "propesor/estudyante" catch-all cluster
+        "propesor", "estudyante", "guro", "magaaral", "maestra", "maestro",
+        "students", "student", "maam", "sir", "professor", "teacher", "instructor",
+        "faculty", "teacher", "atty", "miss",
         # English stop words (core subset)
         "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
         "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
@@ -76,12 +81,16 @@ def run_bertopic(
         "your", "he", "she", "they", "his", "her", "their", "as", "not",
         "also", "so", "if", "than", "then", "when", "what", "how", "all",
         "very", "just", "more", "about", "up", "out", "no", "her", "him",
-        # Cebuano function words
+        # Cebuano function words + possessives + filler
         "ang", "nga", "sa", "ni", "si", "ug", "og", "kay", "ba", "na",
         "man", "lang", "ra", "jud", "gyud", "ko", "mo", "mi", "siya",
         "niya", "nako", "imo", "iya", "ato", "nato", "namo", "kamo",
         "sila", "nila", "kang", "kanang", "kanila", "dili", "wala",
-        "naa", "adto", "diri", "didto", "ug", "pero",
+        "naa", "adto", "diri", "didto", "pero",
+        # Cebuano possessives (iyang/kanyang = his/her, among/atong = our)
+        "iyang", "kanyang", "among", "atong", "ilang", "inyong", "among",
+        # High-frequency Cebuano filler (kaayo=very, mao=that/it, bawat=every)
+        "kaayo", "mao", "bawat", "aralin", "klase", "gawain",
         # Tagalog function words
         "ng", "mga", "ay", "nang", "rin", "din", "po", "ho", "yung",
         "kasi", "naman", "lang", "pa", "pag", "kung", "dahil", "para",
