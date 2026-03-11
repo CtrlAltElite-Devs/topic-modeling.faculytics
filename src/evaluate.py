@@ -46,7 +46,8 @@ def compute_npmi_coherence(model: BERTopic, texts: list[str], top_n: int = 10) -
             topics=topic_words,
             texts=tokenized,
             dictionary=dictionary,
-            coherence="c_npmi"
+            coherence="c_npmi",
+            window_size=10  # Standard sliding window for short texts (Lau et al. 2014)
         )
         return coherence_model.get_coherence()
     except Exception as e:
@@ -120,11 +121,50 @@ def compute_silhouette(topics: list[int], embeddings: np.ndarray) -> float:
         return 0.0
 
 
+def compute_embedding_coherence(model: BERTopic, embed_model=None) -> float:
+    """
+    Compute embedding-based coherence: average pairwise cosine similarity
+    between top keyword embeddings per topic.
+
+    Language-agnostic alternative to NPMI — critical for multilingual models
+    where co-occurrence metrics fail (Lau et al. 2014 coherence limitations).
+    Target: > 0.5
+    """
+    if embed_model is None:
+        return 0.0
+
+    scores = []
+    for topic_id in model.get_topic_info()["Topic"]:
+        if topic_id == -1:
+            continue
+        words = model.get_topic(topic_id)
+        if not words or len(words) < 2:
+            continue
+        keywords = [w for w, _ in words[:10]]
+        try:
+            vecs = embed_model.encode(keywords, show_progress_bar=False, normalize_embeddings=True)
+            # Average pairwise cosine similarity (dot product since normalized)
+            n = len(vecs)
+            sim_sum = 0.0
+            count = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    sim_sum += float(np.dot(vecs[i], vecs[j]))
+                    count += 1
+            if count > 0:
+                scores.append(sim_sum / count)
+        except Exception:
+            continue
+
+    return round(float(np.mean(scores)), 4) if scores else 0.0
+
+
 def compute_metrics(
     model: BERTopic,
     topics: list[int],
     texts: list[str],
-    embeddings: np.ndarray
+    embeddings: np.ndarray,
+    embed_model=None
 ) -> dict[str, Any]:
     """
     Compute all evaluation metrics for a topic model.
@@ -139,6 +179,7 @@ def compute_metrics(
     num_topics = len(set(topics)) - (1 if -1 in topics else 0)
     
     metrics = {
+        "embedding_coherence": compute_embedding_coherence(model, embed_model=embed_model),
         "npmi_coherence": round(compute_npmi_coherence(model, texts), 4),
         "topic_diversity": round(compute_topic_diversity(model), 4),
         "outlier_ratio": round(compute_outlier_ratio(model), 4),

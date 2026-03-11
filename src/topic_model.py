@@ -51,18 +51,46 @@ def run_bertopic(
     )
     
     # Configure HDBSCAN for clustering
+    # min_samples controls outlier sensitivity — lower = fewer outliers
+    # McInnes et al. (2017): min_samples defaults to min_cluster_size, but
+    # decoupling allows tighter clusters with fewer rejected docs
+    min_samples = params.get("hdbscan_min_samples", 5)
     hdbscan_model = HDBSCAN(
         min_cluster_size=min_topic_size,
+        min_samples=min_samples,
         metric="euclidean",
         cluster_selection_method="eom",
         prediction_data=True
     )
     
     # Vectorizer for c-TF-IDF (multilingual-friendly)
-    # Using simple settings to handle Cebuano/Tagalog/English
+    # Stop words: English + high-frequency Cebuano/Tagalog function words
+    # These are grammatical tokens that dominate c-TF-IDF without adding topic signal
+    MULTILINGUAL_STOP_WORDS = list({
+        # English stop words (core subset)
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+        "being", "have", "has", "had", "do", "does", "did", "will", "would",
+        "could", "should", "may", "might", "shall", "can", "that", "this",
+        "these", "those", "it", "its", "i", "me", "my", "we", "our", "you",
+        "your", "he", "she", "they", "his", "her", "their", "as", "not",
+        "also", "so", "if", "than", "then", "when", "what", "how", "all",
+        "very", "just", "more", "about", "up", "out", "no", "her", "him",
+        # Cebuano function words
+        "ang", "nga", "sa", "ni", "si", "ug", "og", "kay", "ba", "na",
+        "man", "lang", "ra", "jud", "gyud", "ko", "mo", "mi", "siya",
+        "niya", "nako", "imo", "iya", "ato", "nato", "namo", "kamo",
+        "sila", "nila", "kang", "kanang", "kanila", "dili", "wala",
+        "naa", "adto", "diri", "didto", "ug", "pero",
+        # Tagalog function words
+        "ng", "mga", "ay", "nang", "rin", "din", "po", "ho", "yung",
+        "kasi", "naman", "lang", "pa", "pag", "kung", "dahil", "para",
+        "hindi", "at", "o", "ni", "niya", "siya", "namin", "natin",
+        "nila", "ito", "iyon", "yon", "dito", "doon",
+    })
     vectorizer_model = CountVectorizer(
         ngram_range=(1, 2),
-        stop_words=None,  # Don't filter — multilingual content
+        stop_words=MULTILINGUAL_STOP_WORDS,
         min_df=2
     )
     
