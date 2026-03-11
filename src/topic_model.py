@@ -1,0 +1,132 @@
+"""
+BERTopic wrapper for topic modeling with pre-computed embeddings.
+"""
+import logging
+from typing import Any
+import numpy as np
+from bertopic import BERTopic
+from umap import UMAP
+from hdbscan import HDBSCAN
+from sklearn.feature_extraction.text import CountVectorizer
+
+logger = logging.getLogger(__name__)
+
+
+def run_bertopic(
+    embeddings: np.ndarray,
+    texts: list[str],
+    params: dict[str, Any]
+) -> BERTopic:
+    """
+    Run BERTopic with pre-computed embeddings.
+    
+    Args:
+        embeddings: Pre-computed LaBSE embeddings (n_samples, 768).
+        texts: Original text documents.
+        params: Dict with keys:
+            - min_topic_size: Minimum cluster size (default 15)
+            - nr_topics: Number of topics or None for auto
+            - umap_n_neighbors: UMAP n_neighbors (default 15)
+            - umap_n_components: UMAP output dimensions (default 5)
+            
+    Returns:
+        Fitted BERTopic model.
+    """
+    # Extract params with defaults
+    min_topic_size = params.get("min_topic_size", 15)
+    nr_topics = params.get("nr_topics", None)  # None = auto
+    umap_n_neighbors = params.get("umap_n_neighbors", 15)
+    umap_n_components = params.get("umap_n_components", 5)
+    
+    logger.info(f"BERTopic params: min_topic_size={min_topic_size}, nr_topics={nr_topics}, "
+                f"umap_n_neighbors={umap_n_neighbors}, umap_n_components={umap_n_components}")
+    
+    # Configure UMAP for dimensionality reduction
+    umap_model = UMAP(
+        n_neighbors=umap_n_neighbors,
+        n_components=umap_n_components,
+        min_dist=0.0,
+        metric="cosine",
+        random_state=42
+    )
+    
+    # Configure HDBSCAN for clustering
+    hdbscan_model = HDBSCAN(
+        min_cluster_size=min_topic_size,
+        metric="euclidean",
+        cluster_selection_method="eom",
+        prediction_data=True
+    )
+    
+    # Vectorizer for c-TF-IDF (multilingual-friendly)
+    # Using simple settings to handle Cebuano/Tagalog/English
+    vectorizer_model = CountVectorizer(
+        ngram_range=(1, 2),
+        stop_words=None,  # Don't filter — multilingual content
+        min_df=2
+    )
+    
+    # Create BERTopic model
+    # embedding_model=None tells BERTopic to use pre-computed embeddings
+    topic_model = BERTopic(
+        embedding_model=None,
+        umap_model=umap_model,
+        hdbscan_model=hdbscan_model,
+        vectorizer_model=vectorizer_model,
+        nr_topics=nr_topics,
+        verbose=True
+    )
+    
+    # Fit with pre-computed embeddings
+    logger.info(f"Fitting BERTopic on {len(texts)} documents...")
+    topics, probs = topic_model.fit_transform(texts, embeddings=embeddings)
+    
+    n_topics = len(set(topics)) - (1 if -1 in topics else 0)  # Exclude outlier topic
+    n_outliers = sum(1 for t in topics if t == -1)
+    outlier_pct = n_outliers / len(topics) * 100
+    
+    logger.info(f"Found {n_topics} topics, {n_outliers} outliers ({outlier_pct:.1f}%)")
+    
+    return topic_model
+
+
+def extract_topic_info(model: BERTopic) -> list[dict]:
+    """
+    Extract topic information from a fitted BERTopic model.
+    
+    Returns:
+        List of dicts with: topic_id, label, keywords, doc_count
+    """
+    topic_info = model.get_topic_info()
+    
+    results = []
+    for _, row in topic_info.iterrows():
+        topic_id = row["Topic"]
+        
+        # Skip outlier topic (-1) in the detailed list
+        if topic_id == -1:
+            continue
+        
+        # Get top keywords
+        topic_words = model.get_topic(topic_id)
+        keywords = [word for word, _ in topic_words[:10]] if topic_words else []
+        
+        results.append({
+            "topic_id": topic_id,
+            "label": row.get("Name", f"Topic_{topic_id}"),
+            "keywords": keywords,
+            "doc_count": row["Count"]
+        })
+    
+    return results
+
+
+def get_topic_assignments(model: BERTopic, texts: list[str], embeddings: np.ndarray) -> list[int]:
+    """
+    Get topic assignments for documents.
+    
+    Returns:
+        List of topic IDs (-1 for outliers).
+    """
+    topics, _ = model.transform(texts, embeddings=embeddings)
+    return topics

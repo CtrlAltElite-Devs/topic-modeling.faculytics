@@ -1,0 +1,23 @@
+# Core ML
+torch>=2.2.0
+sentence-transformers>=2.7.0
+bertopic>=0.16.0
+
+# BERTopic dependencies
+umap-learn>=0.5.6
+hdbscan>=0.8.33
+scikit-learn>=1.4.0
+
+# Data
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Evaluation metrics
+gensim>=4.3.0
+
+# Discord notifications
+requests>=2.31.0
+
+# Utilities
+tqdm>=4.66.0
+python-dotenv>=1.0.0
