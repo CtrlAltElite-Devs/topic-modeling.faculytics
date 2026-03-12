@@ -142,6 +142,10 @@ def run_bertopic(
         verbose=True
     )
     
+    # Seed for reproducibility — controls HDBSCAN tie-breaking and
+    # KeyBERTInspired representative document sampling
+    np.random.seed(42)
+
     # Fit with pre-computed embeddings
     logger.info(f"Fitting BERTopic on {len(texts)} documents...")
     topics, probs = topic_model.fit_transform(texts, embeddings=embeddings)

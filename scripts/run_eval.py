@@ -9,6 +9,8 @@ Usage:
 import argparse
 import json
 import logging
+import random
+import numpy as np
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -175,6 +177,10 @@ def main():
         "dataset": args.dataset,
         "run_id": args.run_id
     }
+
+    # Global seed for reproducibility
+    random.seed(42)
+    np.random.seed(42)
 
     logger.info(f"=== Starting Run {args.run_id} on {args.dataset} dataset ===")
 
