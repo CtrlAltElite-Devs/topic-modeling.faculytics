@@ -115,14 +115,25 @@ def run_bertopic(
     # Representation model: KeyBERTInspired (Grootendorst 2022, §4.2)
     # Uses embedding similarity instead of c-TF-IDF frequency counts.
     # Language-agnostic — finds keywords semantically closest to cluster centroid.
-    # Eliminates the need for manual stop word lists as primary mechanism.
+    # NOTE: KeyBERTInspired requires an embedding_model to embed representative docs.
+    # We still pass pre-computed embeddings to fit_transform() so clustering is fast,
+    # but the model must be set so KeyBERT can encode the representative documents.
     use_keybert = params.get("use_keybert", True)
     representation_model = KeyBERTInspired() if use_keybert else None
 
+    if use_keybert:
+        from sentence_transformers import SentenceTransformer
+        from .config import LABSE_MODEL, DEVICE
+        st_model = SentenceTransformer(LABSE_MODEL, device=DEVICE)
+        embedding_model = st_model
+    else:
+        embedding_model = None
+
     # Create BERTopic model
-    # embedding_model=None tells BERTopic to use pre-computed embeddings
+    # Clustering uses pre-computed embeddings (passed to fit_transform).
+    # embedding_model is only used by KeyBERTInspired for keyword extraction.
     topic_model = BERTopic(
-        embedding_model=None,
+        embedding_model=embedding_model,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
         vectorizer_model=vectorizer_model,
