@@ -27,6 +27,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # Dataset paths
 UC_DATASET_PATH = DATA_DIR / "uc_dataset_20krows1.csv"
 AUGMENTED_DATASET_PATH = DATA_DIR / "feedback_augmented_v1.json"
+UC_FILTERED_DATASET_PATH = DATA_DIR / "uc_dataset_filtered.json"  # sentiment-gated real data
 
 # Embedding cache
 EMBEDDINGS_CACHE_DIR = DATA_DIR

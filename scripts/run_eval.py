@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import (
     DATA_DIR, EXPERIMENTS_DIR,
-    UC_DATASET_PATH, AUGMENTED_DATASET_PATH,
+    UC_DATASET_PATH, AUGMENTED_DATASET_PATH, UC_FILTERED_DATASET_PATH,
     LABSE_MODEL, DEVICE
 )
 from src.preprocess import clean_dataset
@@ -58,16 +58,22 @@ def load_dataset(dataset_type: str) -> list[str]:
         logger.info(f"Loading real dataset from {UC_DATASET_PATH}")
         import pandas as pd
         df = pd.read_csv(UC_DATASET_PATH)
-        # Assume 'comment' column contains the feedback
         if "comment" in df.columns:
             return df["comment"].dropna().astype(str).tolist()
         else:
-            # Try first text-like column
             text_cols = df.select_dtypes(include=["object"]).columns
             if len(text_cols) > 0:
                 logger.warning(f"'comment' column not found, using '{text_cols[0]}'")
                 return df[text_cols[0]].dropna().astype(str).tolist()
             raise ValueError("No text column found in dataset")
+
+    elif dataset_type == "real_filtered":
+        logger.info(f"Loading sentiment-gated real dataset from {UC_FILTERED_DATASET_PATH}")
+        import json
+        with open(UC_FILTERED_DATASET_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        logger.info("Filter: negative+neutral always included, positive only if >=10 words")
+        return [item["text"] for item in data]
 
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
@@ -113,8 +119,8 @@ def save_run_artifacts(
 def main():
     parser = argparse.ArgumentParser(description="Run topic modeling evaluation")
     parser.add_argument(
-        "--dataset",
-        choices=["augmented", "real"],
+        "--dataset", 
+        choices=["augmented", "real", "real_filtered"], 
         required=True,
         help="Dataset to use"
     )
