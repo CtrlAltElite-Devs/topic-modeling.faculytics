@@ -165,6 +165,14 @@ def main():
         action="store_true",
         help="Skip Discord notification"
     )
+    parser.add_argument(
+        "--load-model",
+        type=str,
+        default=None,
+        metavar="RUN_ID",
+        help="Load saved BERTopic model from a previous run instead of retraining "
+             "(e.g. --load-model 013 loads experiments/run_013/bertopic_model)"
+    )
 
     args = parser.parse_args()
 
@@ -205,8 +213,15 @@ def main():
     )
     logger.info(f"Embeddings shape: {embeddings.shape}")
 
-    # Step 4: Run BERTopic
-    model = run_bertopic(embeddings, texts, params)
+    # Step 4: Run BERTopic (or load saved model)
+    if args.load_model:
+        from bertopic import BERTopic
+        model_path = str(EXPERIMENTS_DIR / f"run_{args.load_model}" / "bertopic_model")
+        logger.info(f"Loading saved model from {model_path}...")
+        model = BERTopic.load(model_path)
+        logger.info("Model loaded — skipping training, using frozen keywords from saved run")
+    else:
+        model = run_bertopic(embeddings, texts, params)
     topics = get_topic_assignments(model, texts, embeddings)
     topic_info = extract_topic_info(model)
 
@@ -219,6 +234,13 @@ def main():
     # Step 6: Save artifacts
     run_dir = EXPERIMENTS_DIR / f"run_{args.run_id}"
     save_run_artifacts(run_dir, params, metrics, topic_info, texts)
+
+    # Step 6b: Persist fitted BERTopic model for exact reproducibility
+    # Saving the model means keywords/topics are frozen — reloading always gives
+    # identical results regardless of randomness in KeyBERTInspired sampling.
+    model_path = run_dir / "bertopic_model"
+    model.save(str(model_path), serialization="safetensors", save_ctfidf=True, save_embedding_model=False)
+    logger.info(f"Model saved → {model_path}")
 
     # Step 7: Format report
     report = format_metrics_report(metrics, topic_info, args.run_id, params)
