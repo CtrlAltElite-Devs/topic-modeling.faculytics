@@ -53,10 +53,6 @@ def post_to_discord(message: str, channel_id: str = DISCORD_CHANNEL_ID, ping_sel
     # Split message if too long
     chunks = split_message(message)
     
-    # Append self-ping to last chunk to trigger Y.A.L.A.'s next session
-    if ping_self:
-        chunks[-1] = chunks[-1] + f"\n<@{YALA_BOT_ID}> next run ready for analysis."
-
     success = True
     for i, chunk in enumerate(chunks):
         payload = {"content": chunk}

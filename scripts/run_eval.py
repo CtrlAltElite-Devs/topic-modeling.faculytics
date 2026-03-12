@@ -215,7 +215,7 @@ def main():
     # Step 8: Post to Discord
     if not args.no_notify:
         logger.info("Posting results to Discord...")
-        success = post_to_discord(report, ping_self=True)
+        success = post_to_discord(report)
         if success:
             logger.info("Discord notification sent!")
         else:
